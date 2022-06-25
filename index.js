@@ -52,7 +52,7 @@ commands = {
     },
     say: {
         desc: `Make bot say stuff.`,
-        allowed: ['wmantly', 'useless666'],
+        allowed: ['wmantly', 'useless666', 'tux4242'],
         function(from, ...messages){
             console.log('saying from', from, ':', ...messages)
             minecraftBot.chat((messages || []).join(' '))
