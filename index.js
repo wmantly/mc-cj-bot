@@ -27,7 +27,7 @@ minecraftBot.cj.slowChat = function(...messages){
     for(message of messages){
         count += Math.floor(Math.random() * (3000 - 1500) + 1500);
         setTimeout(function(message){
-            console.log('slowChat out', message)
+            // console.log('slowChat out', message)
             minecraftBot.chat(message);
         }, count, message);   
     }
@@ -77,7 +77,7 @@ commands = {
         desc: `Make bot say stuff.`,
         allowed: ['wmantly', 'useless666', 'tux4242'],
         function(from, ...messages){
-            console.log('saying from', from, ':', ...messages)
+            // console.log('saying from', from, ':', ...messages)
             minecraftBot.chat((messages || []).join(' '))
             unLockCommand(1);
         }
@@ -275,32 +275,32 @@ minecraftBot.on('message', function(message, type){
         if(type === 'chat'){
             let [completeMsg, lvl, username, msg] = message.toString().match(/(\d*)] (.*)\>\s(.*)/) || [message];
 
-            console.log(lvl, username, msg);
+            // console.log(lvl, username, msg);
 
             if(username === minecraftBot.entity.username) return;
 
         }else if(type === 'system' && message.toString().includes('whispers:')){
             let [completeMsg, username, msg] = message.toString().trim().match(/(.*) whispers: (.*)/) || [message]
 
-            console.log('whisper', username, msg)
+            // console.log('whisper', username, msg)
 
            
         }else if(type === 'system' && message.toString().includes(' to teleport to you')){
-            console.log('teleport msg', message.toString())
+            // console.log('teleport msg', message.toString())
         }else if(type === 'system' && message.toString().includes('teleported to you')){
-            console.log('teleport msg complete', message.toString())
+            // console.log('teleport msg complete', message.toString())
         }else if(type === 'system' && message.toString().includes('You whisper to')){
-            console.log('whisper sent', message.toString())
+            // console.log('whisper sent', message.toString())
         }else if(type === 'system' && message.toString().includes(' joined the game')){
-            console.log(message.toString())
+            // console.log(message.toString())
         }else if(type === 'system' && message.toString().includes("Don't worry if you don't see people on:")){
-            console.log(message.toString())
+            // console.log(message.toString())
         }else if(type === 'system' && message.toString().includes(' invited you to teleport to him.')){
             // teleport invite
             handleTeleportInvite(message.toString().split(' ')[0])
 
         }else if(type === "game_info") {
-            console.log('game_info', message.toString(), arguments)
+            // console.log('game_info', message.toString(), arguments)
         }else{
             console.log('other message type', type, message.toString(), arguments)
         }
@@ -311,7 +311,7 @@ minecraftBot.on('message', function(message, type){
 });
 
 minecraftBot.on('end', function(data){
-    console.log('MC on end', data)
+    console.error('MC on end', data)
     process.exit(1);
 });
 
