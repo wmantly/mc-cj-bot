@@ -7,7 +7,7 @@ const minecraftBot = mineflayer.createBot({
     username: process.env.MINECRAFT_USERNAME,
     password: process.env.MINECRAFT_PASSWORD,
     version: '1.18.2',
-    auth: "microsoft"
+    // auth: "microsoft"
 });
 
 // Hold methods only used on CJ server
