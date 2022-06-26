@@ -7,7 +7,7 @@ const minecraftBot = mineflayer.createBot({
     username: process.env.MINECRAFT_USERNAME,
     password: process.env.MINECRAFT_PASSWORD,
     version: '1.18.2',
-    // auth: "microsoft"
+    auth: "microsoft"
 });
 
 // Hold methods only used on CJ server
@@ -15,7 +15,7 @@ minecraftBot.cj = {};
 
 minecraftBot.cj.parsePlayers = function(){
     for (const [username, value] of Object.entries(minecraftBot.players)){
-        value.lvl = value.displayName.extra[0].text
+        value.lvl = Number(value.displayName.extra[0].text)
     }
 
     return minecraftBot.players;
@@ -122,6 +122,20 @@ commands = {
         function(from) {
             minecraftBot.chat('https://discord.gg/K4vqHJGf');
             unLockCommand(1);
+        }
+    },
+    'random-player': {
+        desc: `Return a random online player`,
+        function(from){
+            let players = minecraftBot.cj.parsePlayers()
+            
+            delete players[minecraftBot.entity.username]
+
+            let keys = Object.keys(players);
+            let player = players[keys[ keys.length * Math.random() << 0]];
+
+            minecraftBot.chat(`> I pick [${player.lvl}]${player.username}`)
+            unLockCommand(1)
         }
     },
     help:{
