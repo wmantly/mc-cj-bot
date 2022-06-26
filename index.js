@@ -39,6 +39,29 @@ minecraftBot.cj.slowWhisper = function(to, ...messages){
     minecraftBot.cj.slowChat(...messages.map(message=>`/msg ${to} ${message}`))
 };
 
+let ballOptions = [
+    "It is certain.",
+    "It is decidedly so.",
+    "Without a doubt.",
+    "Yes definitely.",
+    "You may rely on it.",
+    "As I see it, yes.",
+    "Most likely.",
+    "Outlook good.",
+    "Yes.",
+    "Signs point to yes.",
+    "Reply hazy, try again.",
+    "Ask again later.",
+    "Better not tell you now.",
+    "Cannot predict now.",
+    "Concentrate and ask again.",
+    "Don't count on it.",
+    "My reply is no.",
+    "My sources say no.",
+    "Outlook not so good.",
+    "Very doubtful.",
+];
+
 commands = {
     joke: {
         desc: " Tells a random joke.",
@@ -88,7 +111,7 @@ commands = {
         }
     },
     advice: { 
-        desc: `Sat some random advice`,
+        desc: `Say some random advice`,
         function(from){
             minecraftBot.chat('Try this:');
             axios.get('https://api.adviceslip.com/advice').then(res => {
@@ -122,6 +145,31 @@ commands = {
         function(from) {
             minecraftBot.chat('https://discord.gg/K4vqHJGf');
             unLockCommand(1);
+        }
+    },
+    '8ball': {
+        desc: `8 Ball pick.`,
+        function(from){
+            minecraftBot.cj.slowChat(...[
+                `> The 8 Ball says...`,
+                `> ${ballOptions[Math.floor(Math.random()*ballOptions.length)]}`
+            ]);
+            unLockCommand(1);
+        }
+    },
+    dice: {
+        desc: `Roll a die. You can state the max size on the dice. Default is 6.`,
+        function(from, size){
+            size = size || 6;
+            if(!Number.isInteger(Number(size))){
+                minecraftBot.cj.slowWhisper(from, `${size} is not a whole number...`)
+                return unLockCommand(1);
+            }
+            let time = minecraftBot.cj.slowChat(...[
+                `> Rolling a dice for ${from}`,
+                `> ${Math.floor(Math.random()*size)+1}`
+            ]);
+            unLockCommand(time);
         }
     },
     'random-player': {
