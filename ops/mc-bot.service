@@ -1,0 +1,15 @@
+[Unit]
+Description=Minecraft Corejoureny bot
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=60
+User=root
+WorkingDirectory=/opt/theta42/mc-cj-bot
+ExecStart=/usr/bin/env node /opt/theta42/mc-cj-bot/index.js
+
+[Install]
+WantedBy=multi-user.target
