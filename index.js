@@ -7,7 +7,7 @@ const minecraftBot = mineflayer.createBot({
     username: process.env.MINECRAFT_USERNAME,
     password: process.env.MINECRAFT_PASSWORD,
     version: '1.18.2',
-    // auth: "microsoft"
+    auth: "microsoft"
 });
 
 // Hold methods only used on CJ server
@@ -136,6 +136,16 @@ commands = {
 
             minecraftBot.chat(`> I pick [${player.lvl}]${player.username}`)
             unLockCommand(1)
+        }
+    },
+    'flip':{
+        desc: `Flip a coin`,
+        function(from){
+             minecraftBot.cj.slowChat(...[
+                `> Flipping a coin for ${from}`,
+                `> ${!!(Math.floor(Math.random() * (3000 - 1500) + 1500)%2) ? "Heads" : "Tails"}`
+            ]);
+             unLockCommand(1)
         }
     },
     help:{
