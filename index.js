@@ -148,7 +148,7 @@ commands = {
         }
     },
     '8ball': {
-        desc: `8 Ball pick.`,
+        desc: `magic 8 Ball pick.`,
         function(from){
             minecraftBot.cj.slowChat(...[
                 `> The 8 Ball says...`,
