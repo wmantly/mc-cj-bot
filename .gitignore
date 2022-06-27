@@ -103,4 +103,5 @@ dist
 # TernJS port file
 .tern-port
 
-conf/secrets*
+nodejs/conf/secrets.js
+nodejs/conf/secrets.json

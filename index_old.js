@@ -255,12 +255,19 @@ function handleTeleportInvite(from){
 }
 
 minecraftBot.on('chat', (from, message, wtf) => {
+    console.log('chat 1')
+
     if(from === minecraftBot.entity.username) return;
 
     if(message.startsWith(minecraftBot.entity.username)) doCommand(from,
         message.replace(`${minecraftBot.entity.username} ` , ' ').trim()
     )
 });
+
+minecraftBot.on('chat', (from, message, wtf) => {
+    console.log('chat 2')
+});
+
 
 minecraftBot.on('whisper', (from, message) => {
     if(from === minecraftBot.entity.username) return;
