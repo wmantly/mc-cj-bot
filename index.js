@@ -84,7 +84,7 @@ commands = {
     },
     inv:{
         desc: `Have bot invite you to its position`,
-        allowed: ['wmantly', 'useless666', 'VinceNL', 'Ethan63020', 'Ethan63021'],
+        allowed: ['wmantly', 'useless666', 'VinceNL', 'Ethan63020', 'Ethan63021', 'pi_chef'],
         function(from){
             minecraftBot.chat(`/invite ${from}`)
             unLockCommand(1);
