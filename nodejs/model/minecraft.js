@@ -1,12 +1,8 @@
 'use strict';
 
+const {sleep} = require('../utils');
 const mineflayer = require('mineflayer');
 
-function sleep(ms) {
-  return new Promise((resolve) => {
-	setTimeout(resolve, ms);
-  });
-}
 
 class CJbot{
 	isReady = false;
@@ -31,7 +27,6 @@ class CJbot{
 	}
 
 	connect(){
-
 		this.bot = mineflayer.createBot({
 			host: this.host,
 			username: this.username,
@@ -40,20 +35,34 @@ class CJbot{
 			auth: this.auth,
 		});
 
-		this.bot.on('login', ()=>this.__onReady());
+		// this.bot.on('message', (m)=> console.log(m.toString()))
+		this.bot.on('error', (m)=> console.log(m.toString()))
+
+		this.bot.on('login', ()=> this.__onReady());
 
 		this.bot.on('end', reason => this.isReady = false);
-
-
 	}
 
-	__onReady(){
-		console.log('Bot is ready')
-		this.isReady = true;
+	once(event){
+		return new Promise((resolve, reject)=> this.bot.once(event, resolve));
+	}
+
+	async __onReady(){
+
 		this.__startListeners();
 		for(let callback of this.listeners.onReady || []){
-			callback()
+			console.log('__onReady callback', callback)
+			callback(this)
 		}
+
+		console.log('jump')
+		this.bot.setControlState('jump', true);
+		await sleep(2000);
+		this.bot.setControlState('jump', false);
+		console.log('jump done')
+
+		this.isReady = true;
+		console.log('Bot is ready');
 	}
 
 	__startListeners(){
@@ -65,14 +74,16 @@ class CJbot{
 	}
 
 	on(event, callback){
-		console.log('adding listener', event)
 		if(!this.listeners[event]) this.listeners[event] = [];
 
 		this.listeners[event].push(callback);
 
-		if(this.isReady) this.bot.on(event, callback);
+		if(this.isReady){
+			if(event === 'onReady') callback(this);
+			else this.bot.on(event, callback);
+		}
 
-		return ()=> this.bot.off(listener, callback);
+		return event === 'onReady' ? true : ()=> this.bot.off(listener, callback);
 	}
 
 	__autoReConnect(){
@@ -83,11 +94,13 @@ class CJbot{
 			this.connect()
 		});
 
+		this.bot.on('kick', console.error)
+
 		this.on('error', (error)=>{
-			console.error('MC on error', reason)
+			console.error('MC on error', error);
 
 			sleep(30000);
-			this.connect()
+			this.connect();
 		});
 	}
 
@@ -98,7 +111,7 @@ class CJbot{
 	}
 
 	getPlayers(){
-		for (const [username, value] of Object.entries(this.bot.players)){
+		for (let [username, value] of Object.entries(this.bot.players)){
 			value.lvl = Number(value.displayName.extra[0].text)
 		}
 

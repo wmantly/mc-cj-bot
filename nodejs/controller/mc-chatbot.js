@@ -1,37 +1,36 @@
 'use strict';
 
 const conf = require('../conf');
-const {CJbot} = require('../model/minecraft');
-const {ChatBot} = require('../model/chatbot');
-
-const bot = new CJbot({host: conf.mc.server, ...conf.mc.bots.useless666});
+const {bot} = require('./mc-bot');
+const {ChatBot} = require('../model/mcchat');
+const {sleep} = require('../utils');
 
 const chatBot = new ChatBot(bot);
 
-bot.on('chat', (from, messages)=>console.log('controller on chat', from, messages))
-
-
-const axios = require('axios');
-
-chatBot.addCommand('joke', {
-	desc: "Tells a random joke.",
-	async function(bot, from){
-		await bot.chat('Let me think...');
-		let res = await axios.get('https://v2.jokeapi.dev/joke/Any?type=single');
-		bot.chat(...res.data.joke.split('\n').map(e => `> ${e}`));
-	}
+chatBot.addCommand('inv', {
+    desc: `Have bot invite you to its position`,
+    allowed: ['wmantly', 'useless666', 'tux4242', 'VinceNL', 'Ethan63020', 'Ethan63021'],
+    async function(that, from){
+        await that.say(`/invite ${from}`);
+    }
 });
 
-chatBot.addCommand('help', {
-	desc: `Print the allowed commands.`,
+chatBot.addCommand('.invite', {
+	desc: `The bot will /accept an /invite from you.`,
+	allowed: ['wmantly', 'useless666', 'tux4242'],
 	async function(that, from){
-		let intro = [
-			'I am a bot owned and operated by',
-			'wmantly <wmantly@gmail.com>',
-			'You have access to the following commands:'
-		]
-		await that.whisper(from, ...intro, ...Object.keys(that.commands).map(command =>
-			`${command} -- ${that.commands[command].desc || ''}`
-		));
+		await that.whisper('Coming');
+		await that.say(`/accept`);
 	}
 });
+
+chatBot.addCommand('say', {
+    desc: `Make bot say stuff.`,
+    allowed: ['wmantlys', 'useless666', 'tux4242'],
+    ignoreLock: true,
+    async function(that, from, ...messages){
+        await that.say((messages || []).join(' '));
+    }
+});
+
+module.exports = {chatBot, bot};
