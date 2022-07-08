@@ -48,18 +48,11 @@ class CJbot{
 	}
 
 	async __onReady(){
-
 		this.__startListeners();
+
 		for(let callback of this.listeners.onReady || []){
-			console.log('__onReady callback', callback)
 			callback(this)
 		}
-
-		console.log('jump')
-		this.bot.setControlState('jump', true);
-		await sleep(2000);
-		this.bot.setControlState('jump', false);
-		console.log('jump done')
 
 		this.isReady = true;
 		console.log('Bot is ready');
@@ -90,7 +83,7 @@ class CJbot{
 		this.on('end', (reason)=>{
 			console.error('MC on end', reason)
 
-			sleep(30000);
+
 			this.connect()
 		});
 
@@ -99,7 +92,6 @@ class CJbot{
 		this.on('error', (error)=>{
 			console.error('MC on error', error);
 
-			sleep(30000);
 			this.connect();
 		});
 	}

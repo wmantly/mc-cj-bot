@@ -1,121 +1,145 @@
 'use strict';
 
 const {bot} = require('./mc-bot');
-const {MCAction, Vec3} = require('../model/mcaction');
 const {chatBot} = require('./mc-chatbot');
+const {MCAction, Vec3} = require('../model/mcaction');
 const {sleep} = require('../utils');
 
 const actionBot = new MCAction(bot);
 
-const autoeat = require('mineflayer-auto-eat');
-bot.bot.loadPlugin(autoeat);
 
-bot.once('spawn').then((data)=>{
-	console.log('once spawn data', data);
-	  bot.bot.autoEat.options = {
-	    // priority: "saturation",
-	    startAt: 20,
-	    bannedFood: ["golden_apple", "enchanted_golden_apple", "rotten_flesh", ],
-	  }
+actionBot.actionAdd('getSugarCane',{
+    where: Vec3({ x: -95620, y: 1, z: 142230 }),
+    // timeout: 1000,
+    skip: true,
+    until: async function(){
+    	console.log('until get sugar cane',  actionBot.inventoryCount('sugar_cane'), actionBot.inventoryCount('paper'))
+       return (actionBot.inventoryCount('sugar_cane') > 64  || actionBot.inventoryCount('paper') > 64) 
+   },
+    async function(){;
+    	console.log('in getSugarCane')
+        await actionBot.get(this.where, 'sugar_cane');
+    }
 });
 
-// This is not to be used, its here as a reference
-chatBot.addCommand('do', {
-	desc: `Make bot say stuff.`,
-	allowed: ['wmantlys', 'useless666', 'tux4242'],
-	ignoreLock: true,
-	async function(...args){
-		let [chat, from, action, ..._args] = args;
-		console.log('doing action', action)
-		let res = await actions[action](..._args)
-		chat.whisper(from, 'done', res)
-	}
+actionBot.actionAdd('craftPaper', {
+    where: Vec3({x: -95620, y: 0, z: 142229}),
+    timeout: 360000,
+    skip: true,
+    until: async function(){
+    	console.log('until craftPaper', actionBot.inventoryCount('sugar_cane') < 3)
+       return actionBot.inventoryCount('sugar_cane') < 3
+    },
+    async function(){
+        const recipes = actionBot.bot.recipesFor(actionBot.mcData.itemsByName.paper.id, null, null , this.where)
+        await actionBot.bot.craft(recipes[0], null, actionBot.bot.blockAt(this.where))
+    }
+});
+
+actionBot.actionAdd('trade', {
+    async function(villager, tradeIndex, returnItemCount){
+		actionBot.bot.lookAt(villager.position);
+		bot.bot.setControlState('forward', true);
+		await sleep(750);
+		bot.bot.setControlState('forward', false);
+
+        await actionBot.trade(villager.id, tradeIndex, returnItemCount)
+    }    
+});
+
+actionBot.actionAdd('craftEmeraldBlock', {
+    where: Vec3({x: -95620, y: 0, z: 142229}),
+    until: async function(){
+		console.log('until craft em block', actionBot.inventoryCount('emerald') < 9)
+		return actionBot.inventoryCount('emerald') < 9
+    },
+    skip: true,
+    timeout: 60000,
+    async function(){
+        const recipes = actionBot.bot.recipesFor(actionBot.mcData.itemsByName.emerald_block.id, null, 1, this.where)
+        await actionBot.bot.craft(recipes[0], 10, actionBot.bot.blockAt(this.where))
+    }
+});
+
+actionBot.actionAdd('putEmeraldBlock', {
+    where: Vec3({x: -95619, y: 0, z: 142229}),
+    until: async function(){
+       return actionBot.inventoryCount('emerald_block') === 0
+    },
+    skip: true,
+    async function() {
+        await actionBot.put(this.where, 'emerald_block');
+    }
+});
+
+actionBot.actionAdd('putEmerald', {
+    where: Vec3({x: -95619, y: 0, z: 142229}),
+    until: async function(){
+       return actionBot.inventoryCount('emerald') === 0
+    },
+    skip: true,
+    async function() {
+        await actionBot.put(this.where, 'emerald');
+    }
+});
+
+actionBot.actionAdd('tradePaperLoop',{
+    until: async function(){
+       return actionBot.inventoryCount('paper') < 64
+    },
+    skip: true,
+    timeout: 600000,
+    untilCoolDown: 120000,
+    async function(){
+        for(let villager of actionBot.getNearVillagers(10)){
+            try{
+                await actionBot.action('trade', villager, 0, 2);
+            }catch(error){
+                if(error.message === 'This is not a villager') continue;
+                if(error.message === 'Not enough items to trade') return;
+            }
+        if(actionBot.inventoryCount('paper') < 64) break;
+        }
+    }
+});
+
+actionBot.addRoutine('emeraldJob', {
+    actions:[
+        'getSugarCane',
+        'craftPaper',
+        'tradePaperLoop',
+        'craftEmeraldBlock',
+        'putEmeraldBlock',
+        'putEmerald',
+    ],
+    steepCoolDown: 500,
 });
 
 
-let places = {
-	villager: Vec3({x: -95610, y: 4, z: 142360 }),
-	craftingTable: Vec3({x: -95620, y: 0, z: 142229}),
-	sugerCaneChest: Vec3({ x: -95620, y: 1, z: 142230 }),
-	emChest: Vec3({x: -95619, y: 0, z: 142229}),
-	paperChest: Vec3({x: -95620, y: 0, z: 142228}),
-}
-
-
-let actions = {
-	stashBotChest: async function(){
-		console.log('trying botChest');
-		await actionBot.goto(places.botChest);
-		return await actionBot.put(places.botChest);
-	},
-	getBotChest: async function(){
-		console.log('trying botChest');
-		await actionBot.goto(places.botChest);
-		return await actionBot.get(places.botChest);
-	},
-	makePaper: async function() {
-		console.log('getting paper');
-		await actionBot.get(places.sugerCaneChest);
-		if(actionBot.bot.inventory.count(actionBot.mcData.itemsByName.sugar_cane.id) > 3){
-			const recipes = actionBot.bot.recipesFor(actionBot.mcData.itemsByName.paper.id, null, 64, places.craftingTable)
-
-			if(recipes.length) {
-				try{
-					await actionBot.bot.craft(recipes[0], 2304, actionBot.bot.blockAt(places.craftingTable))
-				}catch(error){
-					console.log(error)
-				}
-				return true
-			}else{
-				return 'no recipes'
-			}
-		}
-	},
-	makeEmBlock: async function() {
-		console.log('')
-		const recipes = actionBot.bot.recipesFor(actionBot.mcData.itemsByName.emerald_block.id, null, 1, places.craftingTable)
-
-		if(recipes.length) {
-			try{
-				await actionBot.bot.craft(recipes[0], 10, actionBot.bot.blockAt(places.craftingTable))
-			}catch(error){
-				console.log(error)
-			}
-		}
-
-		await actionBot.put(places.emChest, 'emerald_block');
-		await actionBot.put(places.emChest, 'emerald');
-		await actionBot.put(places.paperChest, 'paper');
-	},
-	trade: async function(villager){
-		while(actionBot.bot.inventory.count(actionBot.mcData.itemsByName.paper.id) > 49){
-			for(let villagerID of actionBot.getNearVillagers()){
-				if(actionBot.bot.inventory.count(actionBot.mcData.itemsByName.paper.id) < 49){
-					console.log('out of paper');
-					return
-				}
-				try{
-					// Trade 0 is always paper if its offered.
-					await actionBot.trade(villagerID, 0, 2)
-				}catch(error){
-					console.log(error)
-				}
-				await sleep(1000)
-			}
-		}
+actionBot.actionAdd('randomMovement', {
+	timeout:30000,
+	async function(){
+		actionBot.bot.setControlState('left', true);
+		await sleep(4000);
+		actionBot.bot.setControlState('left', false);
+		actionBot.bot.setControlState('right', true);
+		await sleep(4000);
+		actionBot.bot.setControlState('right', false);
+		actionBot.bot.setControlState('forward', true);
+		await sleep(4000);
+		actionBot.bot.setControlState('forward', false);
+		actionBot.bot.setControlState('back', true);
+		await sleep(4000);
+		actionBot.bot.setControlState('back', false);
 	}
-}
+})
 
-bot.on('onReady', async()=>{
-	await sleep(10000);
-	while(true){
-		await actions.trade()
-		await sleep(1000)
-		await actions.makeEmBlock()
-		await sleep(1000)
-		await actions.makePaper()
-		await sleep(1000)
-	}
+bot.on('spawn', async()=>{
+	console.log('in spawn')
+	await sleep(2000);
+	await actionBot.action('randomMovement');
+
+	await actionBot.routine('emeraldJob');
 });
 
-module.exports = {actionBot, bot}
+module.exports = {actionBot}

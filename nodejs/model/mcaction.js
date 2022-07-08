@@ -3,35 +3,29 @@
 const {sleep} = require('../utils');
 const mineflayer = require('mineflayer');
 const minecraftData = require('minecraft-data');
-const inventoryViewer = require('mineflayer-web-inventory');
 const { pathfinder, Movements, goals: { GoalNear } } = require('mineflayer-pathfinder');
 const Vec3 = require('vec3');
 
 class MCAction{
 	static Vec3 = Vec3
+	isLocked = false
+	actions = {};
+	currentAction = false;
 
 	constructor(cjbot){
 		this.cjbot = cjbot;
 		this.bot = this.cjbot.bot;
 
 		this.__onReady();
+		this.cjbot.on('onReady', this.__onReady.bind(this));
 	}
 
-	__onReady(){
-
-		inventoryViewer(this.bot);
-		require('minecraft-data')(this.bot.version);
-
-		this.cjbot.on('onReady', async ()=>{
-			console.log('MCAction ready');
-
-			this.bot.loadPlugin(pathfinder);
-
-			this.mcData = minecraftData(this.bot.version);
-			this.defaultMove = new Movements(this.bot, this.mcData);
-			this.defaultMove.canDig = false
-			this.bot.pathfinder.setMovements(this.defaultMove);
-		});
+	async __onReady(){
+		this.bot.loadPlugin(pathfinder);
+		this.mcData = minecraftData(this.bot.version);
+		this.defaultMove = new Movements(this.bot, this.mcData);
+		this.defaultMove.canDig = false
+		this.bot.pathfinder.setMovements(this.defaultMove);
 	}
 
 	__blockOrVec(thing){
@@ -39,6 +33,144 @@ class MCAction{
 		if(thing.constructor && thing.constructor.name === 'Block') return thing;
 
 		throw new Error('Not supported block identifier');
+	}
+
+	actionAdd(name, obj){
+		if(this.actions[name]) throw new Error('Action already exists');
+		if(!obj.function && typeof obj.function !== "function") throw new Error('Action must have a function')
+
+		this.actions[name] = {name, ...obj};
+
+		return true;
+	}
+
+	actionGoTo(action, reTry){
+		return new Promise(async(resolve, reject)=>{
+
+			let range = reTryCount ? 10 + (action.range || 0) : action.range;
+
+			try{
+				await this.goto(action.where, range)
+				return reTry ? await this.actionGoTo(action) : resolve();
+			}catch(error){
+				if(reTry) return reject('Action can not move to where')
+				await this.actionGoTo(action, true);
+			}
+		});
+	}
+	async action(name, ...args){
+		if(!this.actions[name]) throw new Error('Action not found.');
+		let action = this.actions[name];
+		
+		console.log('action', name)
+
+		if(action.skip){
+			if(action.skip === true && await action.until.call({...action, ...this}))return true;	
+			if(typeof action.skip === 'function' && await action.skip.call({...action, ...this})) return true;
+		}
+
+		let handler = async (resolve, reject)=>{
+
+			let clear = false;
+			let error = false;
+			
+
+			if(action.where) await this.goto(action.where, action.range)
+
+			if(action.timeout !== false){
+				clear = setTimeout( async reject =>{
+						if(this.bot.currentWindow){
+							try{
+								console.log('found open widow on timeout')
+								await  this.bot.closeWindow(this.bot.currentWindow);
+							}catch(error){
+								console.log('error on close window timeout', error)
+							}
+						}
+						reject('Action timed out.');
+					},
+					action.timeout || 10000,
+					reject
+				);
+			}
+
+			console.log('doing')
+
+			try {
+				var res = await action.function.call({...action, ...this}, ...args);}
+			catch(error){
+				error = error;
+			}
+
+			if(clear) clearInterval(clear);
+
+			if(action.until && !await action.until.call({...action, ...this})){
+				if(action.untilCoolDown){
+					console.log('sleeping for until')
+					await sleep(action.untilCoolDown)
+				}
+				console.log('until not met, running agian')
+				return handler(resolve, reject)
+			}
+
+
+			return error ? reject(error) : resolve(res);
+		}
+
+		await (new Promise(handler));
+	}
+
+	routines = {}
+	currentRoutine = false;
+
+	async routine(name, ...args){
+		if(!this.routines[name]) throw new Error('Routine not found.');
+		let routine = this.routines[name];
+
+
+		let state = routine.state = {
+			run: true,
+			step: 0,
+			completeCount: 0,
+		}
+
+		while(true){
+			let action = this.actions[routine.actions[state.step]];
+			// console.log('action', action, routine.actions[state.step])
+
+
+			try{
+				await this.action(action.name);
+			}catch(error){
+				console.log(action.name, 'error', error)
+				if(routine.onStepError){
+					routine.onStepError(step)
+				}
+			}
+			if(state.step++ == routine.actions.length-1){
+				state.step = 0;
+				state.completeCount++;
+				if(routine.coolDown || routine.stepCoolDown) await sleep(routine.coolDown || routine.stepCoolDown);
+			}else{
+				if(routine.stepCoolDown) await sleep(routine.stepCoolDown);
+			}
+		}
+	}
+
+	addRoutine(name, obj){
+		if(this.routines[name]) throw new Error('Action already exists');
+		// if(!obj.function && typeof obj.function !== "function") throw new Error('Action must have a function')
+
+		this.routines[name] = obj;
+
+		return true;
+	}
+
+	inventoryCount(block){
+		if(Number.isInteger(Number(block))) block = Number(block)
+		else block = this.mcData.itemsByName[block].id
+
+		return this.bot.inventory.count(block);
 	}
 
 	async goto(block, range=2){
@@ -83,8 +215,6 @@ class MCAction{
 			let chestSlot = await this.__nextContainerSlot(window, item);
 			await this.bot.moveSlotItem(currentSlot, chestSlot)
 			
-			await this.bot.closeWindow(window);
-
 			let res = await this.put(...arguments);
 			if(res === false) return amount ? amount : false;
 		}
@@ -120,10 +250,11 @@ class MCAction{
 		let window = await this.cjbot.once('windowOpen');
 
 		for(let item of await window.containerItems()){
+			console.log('in get')
 			if(item.slot > window.inventoryStart) break;
 			let currentSlot = Number(item.slot);
 			if(!window.slots[currentSlot]) continue;
-			if(amount && !amount--) return;
+			if(amount && !amount--) break;
 			let inventorySlot = await this.__nextInventorySlot(window, item);
 
 			await this.bot.moveSlotItem(currentSlot, inventorySlot)
@@ -148,9 +279,8 @@ class MCAction{
 
 		const closeVillagersId = villagers
 			.filter(e => this.bot.entity.position.distanceTo(e.position) < distance)
-			.map(e => e.id);
 
-  		return closeVillagersId;
+		return closeVillagersId;
 	}
 
 }
@@ -164,83 +294,96 @@ class MCAction{
 function trade (actionBot, id, index, count) {
 
   function hasResources (window, trade, count) {
-    const first = enough(trade.inputItem1, count)
-    const second = !trade.hasItem2 || enough(trade.secondaryInput, count)
-    return first && second
+	const first = enough(trade.inputItem1, count)
+	const second = !trade.hasItem2 || enough(trade.secondaryInput, count)
+	return first && second
 
-    function enough (item, count) {
-    	return true;
-      return window.count(item.type, item.metadata) >= item.count * count
-    }
+	function enough (item, count) {
+		return true;
+	  return window.count(item.type, item.metadata) >= item.count * count
+	}
   }
   return new Promise(async(resolve, reject)=>{
 	  const bot = actionBot.bot
 	  const e = bot.entities[id]
 	  switch (true) {
-	    case !e:
-	      console.log(`cant find entity with id ${id}`)
-	      break
-	    case e.entityType !== actionBot.mcData.entitiesByName.villager.id:
-	      console.log('entity is not a villager')
-	      break
-	    case bot.entity.position.distanceTo(e.position) > 2:
-	      console.log('villager out of reach')
-	      break
-	    default: {
-	      const villager = await bot.openVillager(e)
-	      const trade = villager.trades[index]
-	      count = count || trade.maxTradeuses - trade.tooluses
+		case !e:
+		  console.log(`cant find entity with id ${id}`)
+		  break
+		case e.entityType !== actionBot.mcData.entitiesByName.villager.id:
+		  console.log('entity is not a villager')
+		  break
+		case bot.entity.position.distanceTo(e.position) > 3:
+		  console.log('villager out of reach')
+		  break
+		default: {
+		  let villager;
+		  let timeout = setTimeout(async(resolve, villager)=>{
+		  	console.log('villager', villager ? villager : 'no villager loaded')
+			console.log('trade Promise timeout reject');
+			if(villager) try{
+				await villager.close()
 
-	      switch (true) {
-	        case !trade:
-	          villager.close()
-	          console.log('trade not found')
-	          break
-	        case trade.inputItem1.name !== 'paper':
-	        	console.log('villager does not have paper')
-	        	villager.close()
-	        case trade.tradeDisabled:
-	          villager.close()
-	          console.log('trade is disabled')
-	          break
-	        // case trade.maxTradeuses - trade.tooluses < count:
-	        //   villager.close()
-	        //   console.log('cant trade that often')
-	        //   break;
-	        case !hasResources(villager.window, trade, count):
-	          villager.close()
-	          console.log('dont have the resources to do that trade')
-	          break
-	        default:
-	          console.log('starting to trade')
+			}catch(error){
+				console.error('villager close error', error)
+				try{
+					if(bot.currentWindow) await bot.currentWindow.close();
+				}catch(error){
 
-	          let timeout = setTimeout(async(resolve, villager)=>{
-	          	console.log('trade Promise timeout reject');
-	          	await villager.close()
+				}
+			}
+			resolve();
+		  }, 5000, resolve, villager);
 
-	          	resolve();
-	          }, 30000, resolve, villager);
+		  try{
+			  console.log('getting villager')
+			  villager = await bot.openVillager(e)
+			  console.log('have villager')
+
+			}catch(error){
+				clearTimeout(timeout)
+				return reject(error)
+			}
+		  const trade = villager.trades[index]
+		  count = count || trade.maxTradeuses - trade.tooluses
+
+		  switch (true) {
+			case !trade:
+			  console.log('trade not found')
+			  villager.close()
+			  break
+			case trade.inputItem1.name !== 'paper':
+				console.log('villager does not have paper')
+				villager.close()
+			case trade.tradeDisabled:
+			  console.log('trade is disabled')
+			  villager.close()
+			  break
+			// case trade.maxTradeuses - trade.tooluses < count:
+			//   villager.close()
+			//   console.log('cant trade that often')
+			//   break;
+			case !hasResources(villager.window, trade, count):
+			  villager.close()
+			  console.log('dont have the resources to do that trade')
+			  break
+			default:
+			  console.log('starting to trade')
 
 
-	          while(true){
-	          	try {
-	          		console.log('doing trade')
-		            await bot.trade(villager, index, count)
-		            console.log(`traded ${count} times`)
-		          } catch (err) {
-		            console.log('an error acured while tyring to trade')
-		            console.log(err)
-	          		await villager.close();
-	          		clearTimeout(timeout);
 
-	          		return resolve()
-
-		          }
-	          }
-	          clearTimeout(timeout);
-	      }
-
-	    }
+				try {
+			  		await bot.trade(villager, index, count)
+					console.log(`traded ${count} times`)
+				  } catch (err) {
+		  			clearTimeout(timeout);
+					return reject(err)
+				  }
+			  await villager.close();
+			  
+		  }
+		  clearTimeout(timeout);
+		}
 	  }
 	  return resolve();
 
